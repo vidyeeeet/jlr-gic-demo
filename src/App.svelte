@@ -84,11 +84,14 @@
 <div class="info-panel" class:visible={panelVisible} aria-hidden={!panelVisible}>
 
   <div class="panel-header" style="--cat-color: {panelColor}">
+    <button class="panel-close" on:click={closePanel} aria-label="Close">
+      <span class="close-x">×</span>
+      <span class="close-back">← Back</span>
+    </button>
     <div class="panel-meta">
       <span class="cat-badge">{panelCategory}</span>
     </div>
     <h2 class="panel-title">{panelNodeId}</h2>
-    <button class="panel-close" on:click={closePanel} aria-label="Close">×</button>
   </div>
 
   <div class="panel-body">
@@ -203,6 +206,7 @@
     background: #f0f0f0;
     color: #333;
   }
+  .close-back { display: none; }
 
   .panel-body {
     padding: 1.1rem 1.2rem;
@@ -309,23 +313,45 @@
     color: var(--textColorMuted);
   }
 
-  /* ── Mobile: bottom-sheet panel ── */
+  /* ── Mobile: full-screen panel with back button ── */
   @media (max-width: 640px) {
     .info-panel {
-      top: auto;
+      top: 0;
       right: 0;
       bottom: 0;
       left: 0;
       width: 100%;
       max-width: 100%;
-      max-height: 78vh;
-      border-radius: 16px 16px 0 0;
-      box-shadow: 0 -6px 32px rgba(0,0,0,0.18);
+      max-height: 100%;
+      border-radius: 0;
+      box-shadow: none;
       transform: translateY(105%);
       overflow-y: auto;
     }
     .info-panel.visible {
       transform: translateY(0);
+    }
+    /* back button: top-left, visible on mobile */
+    .panel-close {
+      top: 0.85rem;
+      left: 0.85rem;
+      right: auto;
+      width: auto;
+      height: auto;
+      padding: 0.35em 0.75em;
+      font-size: 0.9rem;
+      background: #f4f4f4;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      color: #333;
+      gap: 0.25em;
+    }
+    .close-x { display: none; }
+    .close-back { display: inline; }
+    /* push title/badge right to clear the back button */
+    .panel-header {
+      padding-left: 5.5rem;
+      padding-top: 0.85rem;
     }
     .panel-refs {
       padding-bottom: 0.4rem;

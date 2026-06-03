@@ -22,12 +22,9 @@ export default function createRenderer(progress, isMobile, getText, afterAddNode
   const pt = svgEl.createSVGPoint();
 
   const panzoom = createPanZoom(scene, {
-    // https://github.com/anvaka/panzoom/issues/12#issuecomment-373251144
-    onTouch(e) {
-      // console.log("🚀 | onTouch | e", e);
-      // tells the library to not preventDefault
-      return false;
-    },
+    // returning nothing (not false) lets panzoom call e.preventDefault(),
+    // which stops the browser from triggering pull-to-refresh / page scroll
+    onTouch(_e) {},
   });
   const defaultRectangle = { left: -500, right: 500, top: -500, bottom: 500 };
   panzoom.showRectangle(defaultRectangle);
@@ -303,40 +300,14 @@ export default function createRenderer(progress, isMobile, getText, afterAddNode
         // on desktop: fire click to open a new tab
         if (e.pointerType === "mouse" && e.button === 0) onNodeClick(e, node, ui, text);
 
-        // on touch screens: fire onEnterNode to show tooltip
+        // on touch: single tap opens panel, long-press explores node
         if (e.pointerType === "touch") {
-          // start a timer to handle double tap
-          if (wasTap.flag) {
-            // console.log("🚀 | upListener: double tap!");
-            onNodeClick(e, node, ui, text);
-
-            // to prevent tripple tap
-            wasTap.flag = false;
-            clearTimeout(wasTap.timer);
-          } else {
-            wasTap.flag = true;
-            wasTap.timer = setTimeout(
-              () => (wasTap.flag = false),
-              wasTap.timeout
-            );
-          }
-
-          // long tap => right-click
           if (longTap.expect) {
-            // console.log("🚀 | upListener: long tap!");
-
-            // fire leave node event
             onLeaveNode(e, null);
-
-            // fire right click
             bus.fire("node-click-right", { node });
           } else {
-            // open tooltip
-            // onEnterNode(e, node, true);
+            onNodeClick(e, node, ui, text);
           }
-
-          // to prevent onSceneClick from hiding the tooltip
-          // e.preventDefault();
           e.stopPropagation();
         }
 
