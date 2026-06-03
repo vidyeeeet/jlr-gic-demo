@@ -427,10 +427,10 @@ export default function createRenderer(progress, isMobile, getText, afterAddNode
   }
 
   function getNodeUIAttributes(nodeId, dRatio) {
-    const fontSize = 45 * dRatio + 14;
+    const fontSize = 10 * dRatio + 14;   // root≈24px, depth-1≈19px, depth-2≈14px
     const size = textMeasure(nodeId, fontSize);
-    const width = size.totalWidth + size.spaceWidth * 6;
-    const height = fontSize * 1.6;
+    const width = size.totalWidth + size.spaceWidth * 5;
+    const height = fontSize * 1.55;
 
     return {
       fontSize,
@@ -438,11 +438,11 @@ export default function createRenderer(progress, isMobile, getText, afterAddNode
       height,
       x: -width / 2,
       y: -height / 2,
-      rx: 15 * dRatio + 2,
-      ry: 15 * dRatio + 2,
-      px: -width / 2 + size.spaceWidth * 3,
-      py: -height / 2 + fontSize * 1.1,
-      strokeWidth: 4 * dRatio + 1,
+      rx: 6 * dRatio + 3,
+      ry: 6 * dRatio + 3,
+      px: -width / 2 + size.spaceWidth * 2.5,
+      py: -height / 2 + fontSize * 1.05,
+      strokeWidth: 2 * dRatio + 1,
     };
   }
 

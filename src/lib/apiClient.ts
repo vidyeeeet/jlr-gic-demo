@@ -1,216 +1,123 @@
-import wiki, { relatedResult, wikiSummary } from "wikipedia";
-import { appState } from "./state";
-// TODO: get rid of `wikipedia` pkg
+import { jlrNodes, nodeMap, adjacencyMap, type JLRNode, type Category } from './jlrData';
 
-
-// https://dev.to/timhuang/a-simple-way-to-detect-if-browser-is-on-a-mobile-device-with-javascript-44j3
 export let isMobile = false;
-if (
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  )
-) {
+if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
   isMobile = true;
-}
-
-function __minimizeUrl(url: string) {
-  return url.replaceAll(/\n\s*/g, "");
-}
-
-let restApiLang = 'en'
-
-function RestApiBase() {
-  return `https://${restApiLang}.wikipedia.org/api/rest_v1`
-}
-
-// ------------------------------------------------------------ //
-//                        Auto completion                      //
-// -----------------------------------------------------------//
-
-/** Wraps `wiki.search()` method */
-// async function suggest(query: string) {
-//   const resSearch = await wiki.search(query, {
-//     limit: 10,
-//     suggestion: true,
-//   });
-//   console.log("resSearch:", resSearch);
-
-//   // const resSuggest = await wiki.suggest(query);
-//   // console.log("resSuggest:", resSuggest);
-
-//   return resSearch.results;
-// }
-
-const getUrlSuggest = (query) =>
-  __minimizeUrl(`
-  https://${appState.lang}.wikipedia.org/w/api.php
-  ?action=opensearch
-  &format=json
-  &formatversion=2
-  &search=${query}
-  &namespace=0
-  &limit=10
-  &origin=*`);
-
-/**
- * Uses `Legacy Wikipedia API - api.php`
- *
- * https://www.mediawiki.org/wiki/API:Main_page
- * */
-async function suggestCustom(query: string) {
-  const apiEndpoint = getUrlSuggest(query);
-  console.log("api endpoint:", apiEndpoint);
-  console.log("encoded url:", encodeURI(query));
-
-  const fetchSearch = (await (await fetch(apiEndpoint)).json()) as [
-    string,
-    string[],
-    string[],
-    string[]
-  ];
-  console.log("fetchSearch:", fetchSearch);
-
-  // return fetchSearch [query, suggests[], ""[], links[]]
-  const [, titles, , links] = fetchSearch;
-  
-  
-  const res: SuggestionsCustom = [];
-  for (let i = 0; i < titles.length; i++) {
-    const chunks = links[i].split("/")
-    res.push({ title: titles[i], normalized: chunks[chunks.length - 1] });
-  }
-
-  return res;
 }
 
 export type SuggestionsCustom = { title: string; normalized: string }[];
 
-// ------------------------------------------------------------ //
-//                       Links & Preview                       //
-// -----------------------------------------------------------//
+export interface DocRef {
+  source: 'Confluence' | 'SharePoint' | 'Jira' | 'Workday';
+  title: string;
+  docId: string;
+}
 
-/** Loads page links and intro. */
-async function page(query: string) {
-  const resPage = await wiki.page(query, {
-    autoSuggest: true,
-    redirect: false,
-  });
+function stableId(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return Math.abs(h);
+}
 
-  // REST API spec
-  // https://en.wikipedia.org/api/rest_v1/#/
+function hexId(str: string) {
+  return stableId(str).toString(16).slice(0, 6).toUpperCase();
+}
 
-  // console.log("resPage:", resPage);
+function generateRefs(node: JLRNode): DocRef[] {
+  const h = hexId(node.id);
+  const year = 2024;
+  const refsByCategory: Record<Category, DocRef[]> = {
+    vehicle: [
+      { source: 'Confluence', title: `${node.id} — Programme Overview & Specifications`, docId: `JLR-PROD-${h}` },
+      { source: 'Confluence', title: `${node.id} — Market Positioning & Variant Guide`, docId: `JLR-MKT-${h}` },
+      { source: 'SharePoint',  title: `${node.id} — Launch Readiness Deck Q2 ${year}`,  docId: `SP-LR-${h}` },
+    ],
+    person: [
+      { source: 'Workday',    title: `${node.id} — Executive Profile & Responsibilities`, docId: `WD-EXEC-${h}` },
+      { source: 'Confluence', title: `JLR Leadership Team — Org Chart ${year}`,          docId: `JLR-ORG-${year}` },
+    ],
+    department: [
+      { source: 'Confluence', title: `${node.id} — Team Wiki & Onboarding Guide`, docId: `JLR-TEAM-${h}` },
+      { source: 'SharePoint', title: `${node.id} — Annual Operating Plan ${year}`,docId: `SP-AOP-${h}` },
+      { source: 'Jira',       title: `${node.id} — Q3 ${year} Roadmap`,           docId: `JLR-RD-${h}` },
+    ],
+    technology: [
+      { source: 'Confluence', title: `${node.id} — Technical Architecture`,             docId: `JLR-TECH-${h}` },
+      { source: 'Jira',       title: `${node.id} — Feature Epics & Backlog`,            docId: `ENG-EP-${h}` },
+      { source: 'SharePoint', title: `${node.id} — Supplier Qualification Report ${year}`, docId: `SP-SQR-${h}` },
+    ],
+    location: [
+      { source: 'SharePoint', title: `${node.id} — Site Capacity & Infrastructure`,   docId: `SP-SITE-${h}` },
+      { source: 'SharePoint', title: `${node.id} — HSE Annual Report ${year}`,        docId: `SP-HSE-${h}` },
+      { source: 'Confluence', title: `${node.id} — EV Transition Readiness Plan`,     docId: `JLR-EV-${h}` },
+    ],
+    project: [
+      { source: 'Jira',       title: `${node.id} — Programme Board & Milestones`,       docId: `JIRA-PB-${h}` },
+      { source: 'Confluence', title: `${node.id} — Project Charter & Objectives`,       docId: `JLR-PC-${h}` },
+      { source: 'SharePoint', title: `${node.id} — Steering Committee Deck Q2 ${year}`, docId: `SP-SC-${h}` },
+    ],
+  };
+  return refsByCategory[node.category] ?? [];
+}
 
-  // console.log("resPage.links:", await resPage.links());
-  // console.log("resPage.intro:", await resPage.intro());
+function buildPageObject(id: string) {
+  const node = nodeMap.get(id);
+  if (!node) return null;
+  return {
+    titles: { normalized: id },
+    description: node.category,   // used as category label
+    pageid: stableId(id),
+    extract_html: node.details,   // clean description text only
+    refs: generateRefs(node),
+    thumbnail: null,
+    originalimage: null,
+    content_urls: {
+      desktop: { page: '#' },
+      mobile:  { page: '#' },
+    },
+  };
+}
 
-  // consider showing the infobox
-  // console.log("resPage.infobox:", await resPage.infobox({autoSuggest: true}));
-
-  // requires User-Agent/Api-User-Agent header
-  // console.log("resPage.summary:", await resPage.summary());
-
-  // don't need the whole content (for a preview)
-  // console.log("resPage.content:", await resPage.content());
-
-  // the "/related" route is experimental!
-  // const related = await resPage.related();
-  // console.log("resPage.related:", related);
-
-  return resPage;
+async function suggestCustom(query: string): Promise<SuggestionsCustom> {
+  const q = query.toLowerCase();
+  return jlrNodes
+    .filter(n => n.id.toLowerCase().includes(q) || n.description.toLowerCase().includes(q))
+    .slice(0, 12)
+    .map(n => ({ title: n.id, normalized: n.id }));
 }
 
 async function getSummary(query: string) {
-  // console.log("🚀 | getSummary | query", query)
-
-  const endpoint = RestApiBase() + '/page/summary/' + query
-  const summary: wikiSummary = await (await fetch(endpoint)).json();
-
-  return summary;
+  const exact = nodeMap.get(query);
+  if (exact) return buildPageObject(query)!;
+  const fuzzy = jlrNodes.find(n => n.id.toLowerCase() === query.toLowerCase());
+  return buildPageObject(fuzzy?.id ?? jlrNodes[0].id)!;
 }
 
 async function getResponse(query: string) {
-  const endpoint = RestApiBase() + '/page/related/' + query
-  const related: relatedResult = await (await fetch(endpoint)).json();
-
-  return related.pages;
+  const neighbors = adjacencyMap.get(query) ?? new Set<string>();
+  return [...neighbors]
+    .map(id => buildPageObject(id))
+    .filter(Boolean) as NonNullable<ReturnType<typeof buildPageObject>>[];
 }
 
-function getItem(item: relatedResult["pages"][number]) {
-  // TODO: replace with titles.display?
-  // return item.titles.normalized;
-
-  const {
-    description,
-    pageid,
-    extract_html,
-    originalimage,
-    thumbnail,
-    content_urls,
-  } = item;
-
-  const page_url = isMobile
-    ? content_urls.mobile.page
-    : content_urls.desktop.page;
-
-  const data = {
-    description,
-    pageid,
-    extract_html,
-    originalimage,
-    thumbnail,
-    page_url,
+function getItem(item: ReturnType<typeof buildPageObject>) {
+  if (!item) return { id: '', data: {} as any };
+  const { description, pageid, extract_html, originalimage, thumbnail, content_urls, refs } = item;
+  const page_url = isMobile ? content_urls.mobile.page : content_urls.desktop.page;
+  return {
+    id: item.titles.normalized,
+    data: { description, pageid, extract_html, originalimage, thumbnail, page_url, refs },
   };
-
-  return { id: item.titles.normalized, data };
 }
 
-// ------------------------------------------------------------ //
-//                          Languages                          //
-// -----------------------------------------------------------//
-
-// let languages = writable<languageResult[]>(null);
-
-// // Note: here lang=en since the response is the same for any lang
-// const loadLangsUrl = __minimizeUrl(`
-// https://en.wikipedia.org/w/api.php
-// ?meta=siteinfo
-// &siprop=languages
-// &format=json
-// &redirects=
-// &action=query
-// &origin=*`);
-
-// async function loadLangs() {
-//   // if (languages) return;
-//   // const langs = await wiki.languages();
-
-//   const response = await fetch(loadLangsUrl);
-
-//   if (!response.ok) return;
-
-//   const langs = (await response.json()).query.languages as languageResult[];
-
-//   languages.set(langs);
-// }
-
-function setLang(language: string) {
-  // validation?
-
-  restApiLang = language;
-}
+function setLang(_lang: string) { /* no-op */ }
 
 export const apiClient = {
-  // suggest,
-  // page,
-
   suggestCustom,
   getSummary,
-
   getResponse,
   getItem,
-
-  // languages,
-  // loadLangs,
   setLang,
 };

@@ -4,43 +4,28 @@
   position: absolute;
 
   &[hidden] {
-    /* display: none; */
     opacity: 0;
     pointer-events: none;
   }
-  transition: opacity 80ms linear;
+  transition: opacity 100ms linear;
 
-  /* border: 2px solid #ddd; */
-  box-shadow: 0 0 1px 2px hsl(0deg 1% 87%);
+  background-color: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.08);
+  border-radius: 4px;
+  overflow: hidden;
 
-  display: flex;
-  flex-direction: row;
+  width: 420px;
+  max-height: 320px;
+  overflow-y: auto;
 
-  & > .text {
-    background-color: #eee;
-    padding: 0.5em 1em;
+  & .tt-content {
+    padding: 1em 1.1em;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: #333;
 
-    overflow-y: auto;
-    word-break: break-word;
-
-    flex: 1 1 auto;
+    & b {
+      color: #111;
+    }
   }
-
-  /* width: min(300px, 30vw); */
-  width: 400px;
-  & > img {
-    max-width: 50%;
-    height: auto;
-    object-fit: cover;
-
-    background-color: #fff;
-  }
-
-  & .text img {
-    background-color: hsla(0, 100%, 100%, 0.6);
-    max-width: 100%;
-  }
-
-  /* max-height: min(500px, 50vh); */
-  max-height: 280px;
 }

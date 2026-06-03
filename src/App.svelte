@@ -1,409 +1,340 @@
 <script lang="ts">
   import WikiSearch from "./lib/WikiSearch.svelte";
-
   import { bus, createRenderer } from "./core-anvaka-vs";
   import { appState, performSearch } from "./lib/state";
-  import { apiClient, isMobile } from "./lib/apiClient";
-  import About from "./lib/About.svelte";
+  import { apiClient, isMobile, type DocRef } from "./lib/apiClient";
+  import { CATEGORY_COLORS } from "./lib/jlrData";
 
-  import { Confetti } from "svelte-confetti";
-  import AboutWordle from "./lib/AboutWordle.svelte";
-  let showConfetti = false
-  let showConfettiContainer = false
+  apiClient.setLang('en');
 
-  let aboutVisible = false;
-  let aboutWordleVisible = false;
+  appState.maxDepth = 2;
 
-  // console.log('[App] appState:', appState)
-
-  // ------------------------------------------ language
-  /**
-   * can't do this in useState
-   * (core-anvaka-vs module doesn't know about apiClient.setLang method)
-   *
-   * so setting a language here.
-   *
-   * Use case:
-   *  1. first load
-   *  2. collect appState from url
-   *  3. perform search if query isn't empty (to this moment `lang` should be properly set)
-   */
-
-  const DEFAULT_LANG = "en";
-  apiClient.setLang(appState.lang || DEFAULT_LANG);
-  // ---------------------------------------------------
-
-  function wordlePlaceholder(node) {
-    // return '...'
-    return node.id.replaceAll(/[^\n\s]/g,  '-')
-    
-  }
-
-  function isWordleOn() {
-    return appState.wordle.toString().includes('true')
-  }
-
-  /**
-   * this funciton garantees that hidden
-   * nodes don't flash on first render
-   **/
-  function getText(node) {
-    console.log("🚀 | getText | node", node)
-    
-    const ids = getWordleIdsSet()
-    
-    if (isWordleOn() && ids.has(node?.data?.pageid?.toString())) {
-      return wordlePlaceholder(node)
-    }
-
-    return node.id
-  }
-
-  function wordleAddNodeHook(node, ui, text) {
-    // if (!isWordleOn()) return
-    
-    const ids = getWordleIdsSet()
-
-    if(ids.has(node?.data?.pageid?.toString())) {
-      wordleNodes.set(node.data.pageid, {node, ui, text})
-    }
-  }
-
-  const renderer = createRenderer(appState.progress, isMobile, getText, wordleAddNodeHook);
+  const renderer = createRenderer(appState.progress, isMobile, (node) => node.id, null);
 
   if (appState.query) {
-    performSearchWrap(appState.query).then((res) => {
-      if (appState.graph) {
-        renderer.render(appState.graph);
-      }
+    performSearchWrap(appState.query).then(() => {
+      if (appState.graph) renderer.render(appState.graph);
     });
   }
 
-  function dropWordleIds() {
-    wordleNodes.forEach(obj => {
-      obj.text.text(obj.node.id)
-    })
-    wordleNodes.clear()
-    appState.wordle = true
-  }
+  // ── Side Panel state ──────────────────────────────────────────────────────
+  let panelVisible = false;
+  let panelNodeId   = '';
+  let panelContent  = '';
+  let panelRefs: DocRef[] = [];
+  let panelColor    = '#333';
+  let panelCategory = '';
 
-  function toggleWordleMode() {
-    const ids = getWordleIdsSet()
+  // suppress hover tooltip
+  bus.on('show-tooltip-node', (_e) => {}, {});
 
-    if (ids.has('true')) {
-      ids.delete('true')
-      ids.add('false')
+  bus.on('show-details-node', (e) => {
+    if (!e.node) return;
+    const { id, data } = e.node;
 
-      wordleNodes.forEach(obj => {
-        obj.text.text(obj.node.id)
-      })
-    } else {
-      ids.delete('false')
-      ids.add('true')
-
-      wordleNodes.forEach(obj => {
-        obj.text.text(wordlePlaceholder(obj.node))
-      })
-    }
-    appState.wordle = [...ids].join(wordleIdSep)
-  }
-
-  // ------------------------------------------ tooltip
-  let isTooltipHidden = true;
-  let tooltipHTML = "";
-  let tooltipEl;
-  let hidingTimer: NodeJS.Timeout;
-  let showingTimer: NodeJS.Timeout;
-
-  const ttWidth = 400;
-  const ttHeight = 500;
-
-  function scheduleHide() {
-    // console.log("🚀 sheduleHide")
-
-    return setTimeout(() => {
-      // console.log("🚀🚀 hide")
-
-      isTooltipHidden = true;
-    }, 100);
-  }
-
-  function scheduleShow() {
-    // console.log("🚀 sheduleShow")
-
-    return setTimeout(() => {
-      // console.log("🚀🚀 show")
-
-      isTooltipHidden = false;
-      clearTimeout(showingTimer);
-      showingTimer = null;
-    }, 200);
-  }
-
-  function onEnterTooltip() {
-    // console.log("🚀 ~ onEnterTooltip")
-    clearTimeout(hidingTimer);
-  }
-
-  function onLeaveTooltip() {
-    // console.log("🚀 ~ onLeaveTooltip")
-    hidingTimer = scheduleHide();
-  }
-
-  function showTooltipNode(e) {
-    console.log("🚀 ~ showTooltipNode ~ e", e)
-    // console.log("🚀 ~ showTooltipNode ~ e", visualViewport)
-
-    if (isWordleOn() && appState.wordle.toString().includes(e.node?.data?.pageid?.toString())) {
-      return  
-    }
-
-    clearTimeout(hidingTimer);
-
-    if (!e.node) {
-      hidingTimer = scheduleHide();
-      clearTimeout(showingTimer);
-      showingTimer = null;
+    // toggle off if same node clicked again
+    if (panelVisible && panelNodeId === id) {
+      panelVisible = false;
       return;
     }
 
-    if (showingTimer) {
-      return;
-    }
+    panelNodeId   = id;
+    panelContent  = data.extract_html ?? '';
+    panelRefs     = (data.refs as DocRef[]) ?? [];
+    panelCategory = data.description ?? '';
+    panelColor    = CATEGORY_COLORS[data.description as keyof typeof CATEGORY_COLORS] ?? '#555';
+    panelVisible  = true;
+  }, {});
 
-    // ------------------------ direction
-    const center = {
-      x: visualViewport.width / 2,
-      y: visualViewport.height / 2,
-    };
-
-    const sign = {
-      x: center.x - e.x,
-      y: center.y - e.y,
-    };
-
-    const isUp = sign.y < 0;
-    // ----------------------------------
-
-    // TODO: should sanitize?
-    // https://developer.mozilla.org/en-US/docs/Web/API/HTML_Sanitizer_API
-    const { thumbnail, extract_html, page_url } = e.node.data;
-    tooltipHTML = thumbnail ? `<img src="${thumbnail.source}" />` : "";
-
-    const fallbackText = `Can't find a preview. See <a href="${page_url}">the original article</a>`;
-    tooltipHTML += `<div class="text">${extract_html || fallbackText}</div>`;
-
-    // reuse current tooltip
-    // if (!isTooltipHidden) {
-    //   return
-    // }
-
-    showingTimer = scheduleShow();
-
-    let left: number;
-    requestAnimationFrame(() => {
-      // shift a bit left
-      left = e.x - ttWidth / 3;
-
-      // keep within viewport
-      left = Math.max(10, left);
-      left = Math.min(visualViewport.width - ttWidth - 10, left);
-
-      tooltipEl.style.left = left + "px";
-
-      if (isUp) {
-        tooltipEl.style.top = "unset";
-        tooltipEl.style.bottom = visualViewport.height - e.y + 20 + "px";
-      } else {
-        tooltipEl.style.top = e.y + 20 + "px";
-        tooltipEl.style.bottom = "unset";
-      }
-
-      // ---------------- test: static corner
-      // tooltipEl.style.bottom = 0
-      // tooltipEl.style.top = 'unset'
-      // tooltipEl.style.right = 0
-      // tooltipEl.style.left = 'unset'
-      // ---------------------------------------
-    });
-  }
-
-  bus.on("show-tooltip-node", showTooltipNode, {});
-
-  const wordleIdSep = '-'
-  function getWordleIdsSet() {
-    return new Set(appState.wordle.toString().split(wordleIdSep))
-  }
-  function toggleWordleId(id: number | string) {
-    const ids = getWordleIdsSet()
-    console.log("🚀 | toggleWordleId | ids", ids)
-
-    const str = id.toString()
-    const deleted = ids.delete(str)
-
-    if (!deleted) {
-      ids.add(str)
-    }
-
-    appState.wordle = [...ids].join(wordleIdSep)
-
-    if (appState.wordle === 'true') {
-      showConfetti = true
-      showConfettiContainer = true
-
-      setTimeout(() => {
-        showConfetti = false
-        if (isWordleOn()) toggleWordleMode()
-      }, 4500)
-      setTimeout(() => {
-        showConfettiContainer = false
-      }, 6000)
-    }
-
-    return !deleted
-  }
-
-  const wordleNodes = new Map()
-
-  // --------------------------------------- node click
-  function onNodeClick(e) {
-    console.log("🚀 ~ onNodeClick ~ e", e)
-
-    if (!isWordleOn()) {
-      window.open(e.node.data.page_url);
-    }
-    else {
-      console.log("🚀 | onNodeClick | e.node.data", e.node.data)
-      const isIdSelected = toggleWordleId(e.node.data.pageid)
-      
-      if (isIdSelected) {
-        e.text.text(wordlePlaceholder(e.node))
-        wordleNodes.set(e.node.data.pageid, e)
-      } else {
-        e.text.text(e.node.id)
-        wordleNodes.delete(e.node.data.pageid)
-      }
-    }
-
-    // window.open(e.node.data.page_url, '_blank')
-  }
-
-  bus.on("show-details-node", onNodeClick, {});
+  function closePanel() { panelVisible = false; }
 
   function onNodeClickRight(e) {
-    // console.log("🚀 ~ onNodeClickRight ~ e", e)
-
     appState.query = e.node.id;
+    panelVisible = false;
     onSearch({ detail: e.node.id });
   }
+  bus.on('node-click-right', onNodeClickRight, {});
 
-  bus.on("node-click-right", onNodeClickRight, {});
-
-  // --------------------------------------- functions
-  async function onSearch(e: CustomEvent) {
+  // ── Search ────────────────────────────────────────────────────────────────
+  async function onSearch(e) {
     const q = e.detail;
-    // console.log('[onSearch] query:', q);
-
+    panelVisible = false;
     await performSearchWrap(q);
     renderer.render(appState.graph);
   }
 
-  async function performSearchWrap(query) {
-    const summary = await apiClient.getSummary(query);
-    // console.log('[summary]', summary);
-
+  async function performSearchWrap(query: string) {
+    const summary  = await apiClient.getSummary(query);
     const entryItem = apiClient.getItem(summary);
     performSearch(entryItem);
   }
+
+  // source → colour mapping
+  const SOURCE_COLORS: Record<string, string> = {
+    Confluence: '#0052CC',
+    SharePoint: '#038387',
+    Jira:       '#0052CC',
+    Workday:    '#C8102E',
+  };
 </script>
 
-<!-- <main class="app-container"> -->
-{#if !appState.wordle.toString().includes('true')}
-  <WikiSearch on:search={onSearch} />
+<WikiSearch on:search={onSearch} />
 
-  {:else}
-  <div style="display: flex; width: fit-content; opacity: 0.7; font-weight: 500; padding: 0.7em 1em;">
-    Wordle mode
+<!-- ── Info Panel ──────────────────────────────────────────────────────────── -->
+<div class="info-panel" class:visible={panelVisible} aria-hidden={!panelVisible}>
+
+  <div class="panel-header" style="--cat-color: {panelColor}">
+    <div class="panel-meta">
+      <span class="cat-badge">{panelCategory}</span>
+    </div>
+    <h2 class="panel-title">{panelNodeId}</h2>
+    <button class="panel-close" on:click={closePanel} aria-label="Close">×</button>
   </div>
-{/if}
 
-{#if showConfettiContainer}
-<div 
+  <div class="panel-body">
+    {@html panelContent}
+  </div>
 
-  style="
-  opacity: {showConfetti ? 1 : 0};
-  transition: opacity 1.2s linear;
-  position: fixed;
-  bottom: -40px;
-  left: 0;
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  justify-content: center;
-  overflow: visible;
-  pointer-events: none;">
-  <!-- <Confetti x={[-5, 5]} y={[0, 0.2]} delay={[0, 2000]} duration=5500 infinite amount=300 fallDistance="100vh" /> -->
-  <!-- <Confetti class="left" x={[1.2, 5.5]} y={[1.25, 2.75]} delay={[0, 2500]} xSpread=0.2 amount=400 /> -->
-  <!-- <Confetti class="right" x={[-1.2, -5.5]} y={[1.25, 2.75]} delay={[0, 2500]} xSpread=0.2 amount=400 /> -->
-  <Confetti
-    class="left"
-    x={[-2.3, 2.3]} y={[1, 3.3]}
-    infinite
-    delay={[0, 1200]} xSpread=0.1 amount=300
-    destroyOnComplete={false}
-    />
-    <!-- bind:infinite={showConfetti} -->
-    <!-- iterationCount -->
+  <div class="panel-refs">
+    <h3 class="refs-heading">Source Documents</h3>
+    {#each panelRefs as ref}
+      <div class="ref-row">
+        <span class="ref-badge" style="background:{SOURCE_COLORS[ref.source] ?? '#555'}">{ref.source}</span>
+        <span class="ref-title">{ref.title}</span>
+        <span class="ref-id">{ref.docId}</span>
+      </div>
+    {/each}
+  </div>
 
+  <div class="panel-footer">
+    <button class="report-btn" on:click|preventDefault={() => {}}>
+      ⚠ Report an Error
+    </button>
+  </div>
 </div>
 
+<!-- dim background when panel open -->
+{#if panelVisible}
+  <div class="panel-backdrop" on:click={closePanel} on:keydown={() => {}} role="presentation"></div>
 {/if}
 
-<div class="layout-container about-links muted">
-  {#if appState.wordle.toString().includes('true')}
-    <a href="#" on:click={() => (aboutWordleVisible = true)}>What is this?</a>
-    <a href="#" on:click={dropWordleIds}>drop wordles</a>
-  {/if}
-  <a href="#" on:click={toggleWordleMode}>{'wordle ' + (appState.wordle.toString().includes('true') ? 'on' : 'off')}</a>
-  <a href="#" on:click={() => (aboutVisible = true)}>about</a>
-  <a
-    href="https://github.com/blinpete/wiki-graph"
-    target="_blank"
-    rel="noopener noreferrer">code</a
-  >
+<!-- JLR watermark -->
+<div class="jlr-brand">
+  <span class="jlr-logo">JLR</span>
+  <span class="jlr-tagline">Knowledge Graph</span>
 </div>
 
-<div
-  id="tooltip"
-  bind:this={tooltipEl}
-  hidden={isTooltipHidden}
-  on:mouseenter={onEnterTooltip}
-  on:mouseleave={onLeaveTooltip}
->
-  {@html tooltipHTML}
-</div>
-<!-- </main> -->
-
-{#if aboutVisible}
-  <About on:hide={() => (aboutVisible = false)} />
-{/if}
-
-{#if aboutWordleVisible}
-  <AboutWordle on:hide={() => (aboutWordleVisible = false)} />
-{/if}
-
-<style lang="postcss">
-  /* order matters */
+<style>
   @import "./assets/style.css";
   @import "normalize.css";
 
-  /* :global(.confetti-holder) {
-    position: absolute;
-    bottom: 0;
-  } */
-  :global(.confetti) {
+  .info-panel {
     position: fixed;
-    bottom: 0px;
-    /* left: 0; */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 400px;
+    max-width: 92vw;
+    background: #fff;
+    box-shadow: -6px 0 32px rgba(0,0,0,0.14);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(102%);
+    transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .info-panel.visible {
+    transform: translateX(0);
+  }
+
+  .panel-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.12);
+    z-index: 55;
+    cursor: pointer;
+  }
+
+  .panel-header {
+    position: relative;
+    padding: 1.2rem 3rem 1rem 1.2rem;
+    border-bottom: 3px solid var(--cat-color, #ccc);
+    flex-shrink: 0;
+  }
+  .panel-meta {
+    margin-bottom: 0.3rem;
+  }
+  .cat-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--cat-color);
+    border: 1.5px solid var(--cat-color);
+    border-radius: 3px;
+    padding: 0.1em 0.5em;
+  }
+  .panel-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111;
+    line-height: 1.3;
+  }
+  .panel-close {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: #888;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  .panel-close:hover {
+    background: #f0f0f0;
+    color: #333;
+  }
+
+  .panel-body {
+    padding: 1.1rem 1.2rem;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: #333;
+    overflow-y: auto;
+    flex: 1 1 auto;
+  }
+  :global(.panel-body b) {
+    color: #111;
+    font-weight: 600;
+  }
+
+  .panel-refs {
+    padding: 0.8rem 1.2rem 0.6rem;
+    border-top: 1px solid #ebebeb;
+    flex-shrink: 0;
+  }
+  .refs-heading {
+    margin: 0 0 0.6rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #999;
+  }
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    font-size: 0.8rem;
+  }
+  .ref-row:not(:last-child) {
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .ref-badge {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 3px;
+    padding: 0.1em 0.45em;
+    letter-spacing: 0.04em;
+  }
+  .ref-title {
+    flex: 1;
+    color: #2c5282;
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ref-id {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: #aaa;
+    font-family: monospace;
+  }
+
+  .panel-footer {
+    padding: 0.8rem 1.2rem 1rem;
+    border-top: 1px solid #ebebeb;
+    flex-shrink: 0;
+  }
+  .report-btn {
+    width: 100%;
+    padding: 0.55em 1em;
+    border: 1.5px solid #e53e3e;
+    border-radius: 4px;
+    background: transparent;
+    color: #e53e3e;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 140ms, color 140ms;
+  }
+  .report-btn:hover {
+    background: #fff5f5;
+  }
+
+  .jlr-brand {
+    position: fixed;
+    bottom: 1em;
+    left: 1.2em;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+    opacity: 0.35;
+    pointer-events: none;
+    user-select: none;
+  }
+  .jlr-logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--c-accent);
+  }
+  .jlr-tagline {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--textColorMuted);
+  }
+
+  /* ── Mobile: bottom-sheet panel ── */
+  @media (max-width: 640px) {
+    .info-panel {
+      top: auto;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      max-width: 100%;
+      max-height: 78vh;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -6px 32px rgba(0,0,0,0.18);
+      transform: translateY(105%);
+      overflow-y: auto;
+    }
+    .info-panel.visible {
+      transform: translateY(0);
+    }
+    .panel-refs {
+      padding-bottom: 0.4rem;
+    }
+    .ref-title {
+      white-space: normal;
+    }
+    .jlr-brand {
+      display: none;
+    }
   }
 </style>

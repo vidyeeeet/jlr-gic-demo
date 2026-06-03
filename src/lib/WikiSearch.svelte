@@ -10,7 +10,6 @@
 
   import { apiClient, type SuggestionsCustom } from "./apiClient";
   import Suggestions from "./Suggestions.svelte";
-  import LanguageSelect from "./LanguageSelect.svelte";
   
   import { createEventDispatcher } from "svelte";
   const dispatch = createEventDispatcher()
@@ -119,7 +118,7 @@
       type="text"
       name="Wiki Search input"
       autocomplete="off"
-      placeholder="start wiki search..."
+      placeholder="Search JLR — vehicles, people, tech..."
       bind:value={query}
       on:click={getSuggestions}
       on:keyup={onKeyup}
@@ -127,7 +126,6 @@
       on:blur={() => setTimeout(dropSuggest, 100)}
       autofocus
     />
-    <LanguageSelect/>
   </div>
 
   <Suggestions {suggestions} {selected} on:select={onSelect} />
@@ -135,8 +133,8 @@
     isLoading
       ? message
       : query
-      ? 'This graph was made from Wikipedia.'
-      : 'Explore human knowledge..'
+      ? 'Tap a node to open its info · long-press to explore connections'
+      : 'Search vehicles, departments, people, technologies…'
   }</div>
 </div>
 
@@ -156,8 +154,7 @@
     position: relative;
     width: 100%;
 
-    display: grid;
-    grid-template-columns: auto min-content;
+    display: flex;
     align-items: center;
 
     background-color: #fff;
@@ -193,5 +190,24 @@
     padding: 0.2em 0.4em;
 
     width: max-content;
+  }
+
+  @media (max-width: 640px) {
+    .input-box {
+      width: calc(100vw - 1.6em);
+    }
+    .input-wrapper {
+      width: 100%;
+    }
+    input {
+      min-width: 0;
+      width: 100%;
+      font-size: 1rem;
+    }
+    .progress-info {
+      width: calc(100vw - 1.6em);
+      white-space: normal;
+      line-height: 1.3;
+    }
   }
 </style>
