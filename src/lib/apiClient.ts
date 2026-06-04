@@ -58,7 +58,15 @@ const NODE_REFS: Partial<Record<string, DocRef[]>> = {
   'Project Symphony':   [{ source: 'jlr.com', title: 'Reimagine | JLR', url: 'https://www.jlr.com/reimagine' }],
   'Modern Luxury':      [{ source: 'jlr.com', title: 'Modern Luxury | JLR', url: 'https://www.jlr.com/modern-luxury' }],
   '2039 Carbon Net Zero':[{ source: 'jlr.com', title: 'Sustainability | JLR', url: 'https://www.jlr.com/sustainability' }],
-  'Destination Zero':   [{ source: 'jlr.com', title: 'Sustainability | JLR', url: 'https://www.jlr.com/sustainability' }],
+  'Destination Zero':          [{ source: 'jlr.com', title: 'Sustainability | JLR', url: 'https://www.jlr.com/sustainability' }],
+  'Governance':                [{ source: 'jlr.com', title: 'Governance | JLR', url: 'https://www.jlr.com/governance' }],
+  'Enterprise':                [{ source: 'jlr.com', title: 'Enterprise | JLR', url: 'https://www.jlr.com/enterprise' }],
+  'Investor Relations':        [{ source: 'jlr.com', title: 'Investor Relations | JLR', url: 'https://www.jlr.com/investor-relations' }],
+  'Annual Report 2026':        [{ source: 'jlr.com', title: 'Annual Report 2026 | JLR', url: 'https://www.jlr.com/annual-report-2026' }],
+  'JLR Culture':               [{ source: 'jlr.com', title: 'People | JLR', url: 'https://www.jlr.com/people' }],
+  'People Behind Electrification': [{ source: 'jlr.com', title: "We're Electrifying | JLR", url: 'https://www.jlr.com/we-are-electrifying' }],
+  'DE&I':                      [{ source: 'jlr.com', title: 'Diversity, Equity & Inclusion | JLR', url: 'https://www.jlr.com//diversity-equity-and-inclusion' }],
+  'JLR Foundation':            [{ source: 'jlr.com', title: 'JLR Foundation | JLR', url: 'https://www.jlr.com/The-JLR-Foundation' }],
 };
 
 // Category-level fallback URLs when a node has no specific entry

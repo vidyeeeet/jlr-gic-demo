@@ -486,6 +486,78 @@ export const jlrNodes: JLRNode[] = [
       (3) <b>Zero Congestion</b> — smart mobility partnerships, connected vehicle services and urban transport solutions.
       Destination Zero guides JLR's product strategy, sustainability investments and community engagement programmes.`,
   },
+  {
+    id: 'Governance',
+    category: 'department',
+    description: 'Board oversight, accountability and corporate decision-making',
+    details: `<b>Governance</b> at JLR is structured around five core principles: Leadership, Effectiveness, Accountability, Stakeholder Relationships and Principles.
+      The Board and Executive Committee rigorously challenge strategy, performance and responsibility to ensure the highest quality of decision-making.
+      JLR continuously evaluates director skills, independence and experience to adapt to its evolving global business needs.
+      All policies, procedures, statements and reports are publicly available via the JLR Download Centre, reflecting JLR's commitment to transparency.`,
+  },
+  {
+    id: 'Enterprise',
+    category: 'project',
+    description: 'Reimagine pillar: responsible global supply chain and economic impact',
+    details: `<b>Enterprise</b> is the fourth pillar of JLR's Reimagine strategy, focused on defining JLR's identity as a responsible global force in automotive technology and design.
+      Committed to carbon net zero by 2039, Enterprise encompasses supply chain resilience — building ethical, cutting-edge solutions across JLR's 7,000+ supplier relationships.
+      JLR directly employs 32,800 colleagues across 17 UK sites and contributes significantly to UK GDP, as documented in the UK Economic Impact Report 2024.
+      Sustainability is embedded in enterprise-wide risk management, with transparency and responsible sourcing at its core.`,
+  },
+  {
+    id: 'Investor Relations',
+    category: 'department',
+    description: 'Financial performance reporting and shareholder engagement',
+    details: `<b>Investor Relations</b> communicates JLR's financial performance to bondholders, creditors and the investment community.
+      In Q4 FY25/26, JLR reported revenue of £6.9bn, recovering strongly quarter-on-quarter after production stoppages due to a cyber incident and the impact of US trade tariffs on UK and EU exports.
+      Full-year FY26 revenue was £22.9bn. The full year was significantly impacted by US tariffs, China market challenges and the planned wind-down of outgoing Jaguar models ahead of the new Jaguar launch.
+      JLR holds regular Investor Days and publishes quarterly results, annual reports and governance documents via its Results Centre.`,
+  },
+  {
+    id: 'Annual Report 2026',
+    category: 'project',
+    description: "JLR's FY25/26 annual report covering strategy, performance and outlook",
+    details: `<b>Annual Report 2026</b> covers JLR's financial year 2025/26 — described as "perhaps more challenging than any of us could have expected."
+      The year was marked by incremental US trade tariffs affecting UK and EU exports, a cyber incident that required pausing production, and the planned wind-down of outgoing Jaguar models ahead of the new all-electric Jaguar launch.
+      Despite these headwinds, profit before tax for Q4 was £458m as production recovered strongly. PBT for the full year was £14m.
+      The report documents JLR's ongoing Reimagine transformation, electrification progress and sustainability commitments, and is available as an interactive and downloadable version.`,
+  },
+  {
+    id: 'JLR Culture',
+    category: 'project',
+    description: '"Live the Exceptional with Soul" — JLR\'s shared purpose and values',
+    details: `<b>JLR Culture</b> is defined by the company's unique purpose: <b>"Live the Exceptional with Soul"</b> — co-created by over 1,000 voices from across the business.
+      This shared purpose unifies JLR's 40,000 employees worldwide, creating an environment where everyone can thrive and contribute to era-defining vehicles.
+      The culture emphasises exceptional minds, curiosity, creativity and a passion for reimagining extraordinary experiences for clients.
+      JLR invests in talent development, offering career pathways from graduate programmes to senior leadership, with a commitment to an inclusive, values-led workplace.`,
+  },
+  {
+    id: 'People Behind Electrification',
+    category: 'project',
+    description: "Campaign showcasing JLR's real engineers and creators driving EV transition",
+    details: `<b>People Behind Electrification</b> (also "We're Electrifying") is JLR's campaign series that profiles the real engineers, designers and programme managers driving the company's electric future.
+      Featured roles include Lead BEV Test Engineer, Charging Attributes Chapter Lead, Jaguar Body-in-White Launch Manager, Lead Full-Stack Software Developer and Manufacturing Engineering Manager.
+      The campaign reflects JLR's Reimagine commitment to electrification across Range Rover, Defender, Discovery and the new all-electric Jaguar, and showcases careers at the cutting edge of EV technology.
+      Stories are published on jlr.com and linked to JLR's careers site for potential candidates.`,
+  },
+  {
+    id: 'DE&I',
+    category: 'project',
+    description: 'Diversity, Equity & Inclusion across people, policies and products',
+    details: `<b>DE&I (Diversity, Equity & Inclusion)</b> at JLR is built around the belief that diversity strengthens the business and the experiences it creates.
+      JLR's DE&I framework spans three dimensions: <b>People</b> (creating an environment where everyone feels valued and able to thrive), <b>Policies</b> (embedding fairness and equity in all processes) and <b>Products</b> (ensuring vehicles and services are accessible and inclusive).
+      The common language — "created for us by us" — reflects the unity behind JLR's mission to promote diversity across team members, suppliers, customers and communities.
+      DE&I progress is reported through JLR's annual sustainability disclosures and governed as part of the Sustainability & ESG function.`,
+  },
+  {
+    id: 'JLR Foundation',
+    category: 'project',
+    description: 'Charitable foundation transforming youth futures through education',
+    details: `<b>JLR Foundation</b> is JLR's strategic philanthropic arm, with a vision that "all children and young people can reach their full potential."
+      It takes a long-term approach to philanthropy, providing grants to non-profit organisations that help young people thrive in school, access opportunities outside school, and make successful transitions into employment.
+      The Foundation has an equity focus — specifically supporting children and young people who experience disadvantage or deprivation.
+      Partners include Right to Succeed, Onside, Get Further and DFN Project Search, working across communities in and around JLR's UK manufacturing footprint.`,
+  },
 ];
 
 // ── Adjacency list (undirected) ───────────────────────────────────────────────
@@ -537,6 +609,15 @@ const rawLinks: [string, string[]][] = [
   ['Wade Sensing',      ['Advanced Research & Engineering', 'Defender']],
   ['ClearSight',        ['Advanced Research & Engineering', 'Software & Connected Services']],
   ['Ingenium Engines',  ['Propulsion & E-Systems', 'Shannon, Ireland', 'Whitley', 'MHEV', 'PHEV']],
+
+  ['Governance',               ['PB Balaji', 'Investor Relations', 'Reimagine', 'Annual Report 2026']],
+  ['Enterprise',               ['Reimagine', 'Procurement & Supply Chain', 'Sustainability & ESG', '2039 Carbon Net Zero']],
+  ['Investor Relations',       ['PB Balaji', 'Governance', 'Annual Report 2026', 'Reimagine']],
+  ['Annual Report 2026',       ['Investor Relations', 'Governance', 'Reimagine', 'PB Balaji']],
+  ['JLR Culture',              ['PB Balaji', 'DE&I', 'People Behind Electrification', 'Sustainability & ESG']],
+  ['People Behind Electrification', ['Reimagine', 'Halewood', 'Solihull', 'JLR Culture', 'MHEV', 'PHEV']],
+  ['DE&I',                     ['JLR Culture', 'Sustainability & ESG', 'JLR Foundation', 'People Behind Electrification']],
+  ['JLR Foundation',           ['Sustainability & ESG', 'DE&I', 'Enterprise']],
 ];
 
 // Build bidirectional adjacency map
