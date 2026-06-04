@@ -69,12 +69,9 @@
     performSearch(entryItem);
   }
 
-  // source → colour mapping
   const SOURCE_COLORS: Record<string, string> = {
-    Confluence: '#0052CC',
-    SharePoint: '#038387',
-    Jira:       '#0052CC',
-    Workday:    '#C8102E',
+    'jlr.com':   '#005A2B',
+    'Wikipedia': '#333333',
   };
 </script>
 
@@ -103,8 +100,7 @@
     {#each panelRefs as ref}
       <div class="ref-row">
         <span class="ref-badge" style="background:{SOURCE_COLORS[ref.source] ?? '#555'}">{ref.source}</span>
-        <span class="ref-title">{ref.title}</span>
-        <span class="ref-id">{ref.docId}</span>
+        <a class="ref-title" href={ref.url} target="_blank" rel="noopener noreferrer">{ref.title}</a>
       </div>
     {/each}
   </div>
@@ -256,16 +252,15 @@
   .ref-title {
     flex: 1;
     color: #2c5282;
-    cursor: default;
+    text-decoration: underline;
+    text-underline-offset: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
   }
-  .ref-id {
-    flex-shrink: 0;
-    font-size: 0.7rem;
-    color: #aaa;
-    font-family: monospace;
+  .ref-title:hover {
+    color: #005A2B;
   }
 
   .panel-footer {
