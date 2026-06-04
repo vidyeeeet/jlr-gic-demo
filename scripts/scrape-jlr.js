@@ -1,16 +1,14 @@
 /**
- * JLR Knowledge Graph Scraper
+ * JLR Knowledge Graph Scraper (node-fetch + cheerio, no browser needed)
  *
- * Crawls jlr.com (depth 3) and the JLR Wikipedia page (depth 1) and writes
- * scripts/jlr-scraped.json for Claude to process into jlrData.ts.
+ * Crawls jlr.com (depth 2) and JLR Wikipedia page (depth 1).
+ * Writes scripts/jlr-scraped.json.
  *
- * Usage:
- *   npm install -D playwright
- *   npx playwright install chromium
- *   node scripts/scrape-jlr.js
+ * Usage:  node scripts/scrape-jlr.js
  */
 
-import { chromium } from 'playwright';
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
 import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -21,43 +19,51 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const JLR_SEEDS = [
   'https://www.jlr.com',
+  'https://www.jlr.com/en',
   'https://www.jlr.com/en/about',
   'https://www.jlr.com/en/innovation',
   'https://www.jlr.com/en/sustainability',
-  'https://www.jlr.com/en/vehicles',
+  'https://www.jlr.com/en/about/leadership',
+  'https://www.jlr.com/en/about/manufacturing',
+  'https://www.jlr.com/en/innovation/electrification',
 ];
 
-const WIKI_SEED = 'https://en.wikipedia.org/wiki/Jaguar_Land_Rover';
+const WIKI_SEED  = 'https://en.wikipedia.org/wiki/Jaguar_Land_Rover';
+const JLR_MAX_DEPTH  = 2;
+const WIKI_MAX_DEPTH = 1;
+const DELAY_MS = 600; // polite crawl delay
 
-const JLR_MAX_DEPTH  = 3;
-const WIKI_MAX_DEPTH = 1;   // only direct links from the JLR article
-
-// URL patterns to skip on jlr.com
-const JLR_SKIP_PATTERNS = [
-  /\/news\//i, /\/press\//i, /\/careers\//i, /\/jobs\//i,
-  /\/media\//i, /\/events\//i, /\/legal\//i, /\/privacy\//i,
-  /\/cookie/i,  /\.(pdf|jpg|jpeg|png|gif|svg|webp|mp4|zip)$/i,
-  /\?/, /#/,
+const JLR_SKIP = [
+  /\/news\b/i, /\/press\b/i, /\/careers\b/i, /\/jobs\b/i,
+  /\/media\b/i, /\/events\b/i, /\/legal\b/i, /\/privacy\b/i,
+  /\/cookie/i,  /\.(pdf|jpg|jpeg|png|gif|svg|webp|mp4|zip)(\?|$)/i,
 ];
 
-// Wikipedia: only follow links that look JLR-related
-const WIKI_ENTITY_HINTS = [
+const WIKI_HINTS = [
   'jaguar', 'land_rover', 'range_rover', 'defender', 'discovery',
-  'f-pace', 'f-type', 'e-pace', 'velar', 'evoque',
-  'solihull', 'halewood', 'gaydon', 'whitley',
-  'reimagine', 'tata_motors', 'ingenium',
+  'f-pace', 'f_pace', 'f-type', 'f_type', 'e-pace', 'e_pace',
+  'velar', 'evoque', 'solihull', 'halewood', 'gaydon', 'whitley',
+  'reimagine', 'tata_motors', 'ingenium', 'ralf_speth',
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; JLR-Graph-Scraper/1.0; educational use)',
+  'Accept-Language': 'en-GB,en;q=0.9',
+};
 
 function normalise(url) {
   try {
     const u = new URL(url);
     u.hash = '';
+    // keep query only for Wikipedia (it doesn't use query strings for articles)
     u.search = '';
     return u.href.replace(/\/$/, '');
   } catch { return null; }
 }
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function isJlrInternal(href, base) {
   try {
@@ -67,61 +73,73 @@ function isJlrInternal(href, base) {
 }
 
 function shouldSkipJlr(url) {
-  return JLR_SKIP_PATTERNS.some(p => p.test(url));
+  return JLR_SKIP.some(p => p.test(url));
 }
 
 function isWikiJlrLink(href) {
-  const path = href.toLowerCase();
+  const p = href.toLowerCase();
   return (
-    path.startsWith('/wiki/') &&
-    !path.startsWith('/wiki/special:') &&
-    !path.startsWith('/wiki/wikipedia:') &&
-    !path.startsWith('/wiki/talk:') &&
-    !path.startsWith('/wiki/file:') &&
-    !path.startsWith('/wiki/help:') &&
-    !path.startsWith('/wiki/category:') &&
-    WIKI_ENTITY_HINTS.some(hint => path.includes(hint))
+    p.startsWith('/wiki/') &&
+    !/special:|wikipedia:|talk:|file:|help:|category:|portal:|template:/i.test(p) &&
+    WIKI_HINTS.some(h => p.includes(h))
   );
 }
 
-async function extractPage(page, url, sourceLabel) {
-  const title = await page.title().catch(() => '');
+async function fetchHtml(url) {
+  const res = await fetch(url, { headers: HEADERS, redirect: 'follow', timeout: 15000 });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ct = res.headers.get('content-type') ?? '';
+  if (!ct.includes('html')) throw new Error(`Not HTML: ${ct}`);
+  return res.text();
+}
 
-  const metaDescription = await page
-    .$eval('meta[name="description"]', el => el.getAttribute('content'))
-    .catch(() => '');
+function extractPage(html, url, sourceLabel) {
+  const $ = cheerio.load(html);
 
-  const headings = await page.$$eval('h1, h2, h3', els =>
-    els.map(el => el.innerText?.trim()).filter(Boolean).slice(0, 20)
-  ).catch(() => []);
+  // Remove nav, footer, script, style noise
+  $('nav, footer, script, style, noscript, aside, .cookie, #cookie').remove();
 
-  // Grab meaningful paragraphs, skip nav/footer noise
-  const bodyText = await page.$$eval('p', els => {
-    const texts = els
-      .map(el => el.innerText?.trim())
-      .filter(t => t && t.length > 40);
-    return texts.join(' ').slice(0, 2000);
-  }).catch(() => '');
+  const title = $('title').first().text().trim()
+    || $('h1').first().text().trim();
+
+  const metaDescription = $('meta[name="description"]').attr('content')?.trim()
+    || $('meta[property="og:description"]').attr('content')?.trim()
+    || '';
+
+  const headings = [];
+  $('h1, h2, h3').each((_, el) => {
+    const t = $(el).text().trim();
+    if (t && t.length > 2 && headings.length < 25) headings.push(t);
+  });
+
+  const paragraphs = [];
+  $('p').each((_, el) => {
+    const t = $(el).text().trim();
+    if (t.length > 40) paragraphs.push(t);
+  });
+  const bodyText = paragraphs.join(' ').slice(0, 3000);
 
   return { url, source: sourceLabel, title, metaDescription, headings, bodyText };
 }
 
-// ── JLR crawler ───────────────────────────────────────────────────────────────
+function collectLinks($, base, filter) {
+  const links = [];
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href && filter(href, base)) {
+      const abs = normalise(new URL(href, base).href);
+      if (abs) links.push(abs);
+    }
+  });
+  return [...new Set(links)];
+}
 
-async function crawlJlr(browser) {
+// ── Crawlers ──────────────────────────────────────────────────────────────────
+
+async function crawlJlr() {
   const results = [];
   const visited = new Set();
-  // queue items: { url, depth }
   const queue = JLR_SEEDS.map(u => ({ url: normalise(u), depth: 0 }));
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (compatible; JLR-Graph-Scraper/1.0)',
-    locale: 'en-GB',
-  });
-  const page = await context.newPage();
-
-  // Dismiss cookie banners via keyboard after load
-  page.on('dialog', d => d.dismiss().catch(() => {}));
 
   while (queue.length > 0) {
     const { url, depth } = queue.shift();
@@ -129,45 +147,40 @@ async function crawlJlr(browser) {
     visited.add(url);
 
     console.log(`[jlr.com d${depth}] ${url}`);
+    await sleep(DELAY_MS);
 
+    let html;
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await page.waitForTimeout(800); // let JS settle
+      html = await fetchHtml(url);
+    } catch (e) {
+      console.warn(`  ✗ ${e.message}`);
+      continue;
+    }
 
-      const data = await extractPage(page, url, 'jlr.com');
-      results.push(data);
+    const $ = cheerio.load(html);
+    const page = extractPage(html, url, 'jlr.com');
 
-      if (depth < JLR_MAX_DEPTH) {
-        const links = await page.$$eval('a[href]', els =>
-          els.map(el => el.getAttribute('href')).filter(Boolean)
-        ).catch(() => []);
+    // Only keep pages that have some meaningful content
+    if (page.bodyText.length > 100 || page.headings.length > 0) {
+      results.push(page);
+    }
 
-        for (const href of links) {
-          if (!isJlrInternal(href, url)) continue;
-          const abs = normalise(new URL(href, url).href);
-          if (abs && !visited.has(abs) && !shouldSkipJlr(abs)) {
-            queue.push({ url: abs, depth: depth + 1 });
-          }
-        }
+    if (depth < JLR_MAX_DEPTH) {
+      const links = collectLinks($, url, isJlrInternal)
+        .filter(l => !shouldSkipJlr(l) && !visited.has(l));
+      for (const l of links) {
+        queue.push({ url: l, depth: depth + 1 });
       }
-    } catch (err) {
-      console.warn(`  ✗ ${url} — ${err.message}`);
     }
   }
 
-  await context.close();
   return results;
 }
 
-// ── Wikipedia crawler ─────────────────────────────────────────────────────────
-
-async function crawlWikipedia(browser) {
+async function crawlWikipedia() {
   const results = [];
   const visited = new Set();
   const queue = [{ url: WIKI_SEED, depth: 0 }];
-
-  const context = await browser.newContext();
-  const page = await context.newPage();
 
   while (queue.length > 0) {
     const { url, depth } = queue.shift();
@@ -175,61 +188,60 @@ async function crawlWikipedia(browser) {
     visited.add(url);
 
     console.log(`[wikipedia d${depth}] ${url}`);
+    await sleep(DELAY_MS);
 
+    let html;
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      html = await fetchHtml(url);
+    } catch (e) {
+      console.warn(`  ✗ ${e.message}`);
+      continue;
+    }
 
-      const data = await extractPage(page, url, 'Wikipedia');
-      // For Wikipedia, bodyText is the article intro (first 2000 chars of paragraphs)
-      results.push(data);
+    const $ = cheerio.load(html);
+    const page = extractPage(html, url, 'Wikipedia');
+    results.push(page);
 
-      if (depth < WIKI_MAX_DEPTH) {
-        const links = await page.$$eval('#mw-content-text a[href]', els =>
-          els.map(el => el.getAttribute('href')).filter(Boolean)
-        ).catch(() => []);
-
-        for (const href of links) {
-          if (!isWikiJlrLink(href)) continue;
-          const abs = normalise('https://en.wikipedia.org' + href);
-          if (abs && !visited.has(abs)) {
-            queue.push({ url: abs, depth: depth + 1 });
-          }
+    if (depth < WIKI_MAX_DEPTH) {
+      const links = [];
+      $('#mw-content-text a[href]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && isWikiJlrLink(href)) {
+          const abs = normalise('https://en.wikipedia.org' + href.split('?')[0]);
+          if (abs && !visited.has(abs)) links.push(abs);
         }
+      });
+      for (const l of [...new Set(links)]) {
+        queue.push({ url: l, depth: depth + 1 });
       }
-    } catch (err) {
-      console.warn(`  ✗ ${url} — ${err.message}`);
     }
   }
 
-  await context.close();
   return results;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('Launching browser…');
-  const browser = await chromium.launch({ headless: true });
-
-  console.log('\n=== Crawling jlr.com ===');
-  const jlrPages = await crawlJlr(browser);
+  console.log('=== Crawling jlr.com ===');
+  const jlrPages = await crawlJlr();
 
   console.log('\n=== Crawling Wikipedia ===');
-  const wikiPages = await crawlWikipedia(browser);
-
-  await browser.close();
+  const wikiPages = await crawlWikipedia();
 
   const output = {
     scraped_at: new Date().toISOString(),
     total: jlrPages.length + wikiPages.length,
+    jlr_count: jlrPages.length,
+    wiki_count: wikiPages.length,
     pages: [...jlrPages, ...wikiPages],
   };
 
   const outPath = join(__dirname, 'jlr-scraped.json');
   writeFileSync(outPath, JSON.stringify(output, null, 2), 'utf8');
 
-  console.log(`\nDone. ${jlrPages.length} jlr.com pages + ${wikiPages.length} Wikipedia pages`);
-  console.log(`Output → ${outPath}`);
+  console.log(`\nDone: ${jlrPages.length} jlr.com + ${wikiPages.length} Wikipedia pages`);
+  console.log(`Written → ${outPath}`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
